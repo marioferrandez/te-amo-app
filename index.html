@@ -11,6 +11,7 @@
     .card{background:rgba(255,255,255,.7);backdrop-filter:blur(8px);border-radius:24px;box-shadow:0 10px 35px rgba(0,0,0,.15);padding:24px;max-width:420px;width:92%}
     h1{margin:0 0 8px;font-size:28px}
     .btn{width:100%;padding:14px;border-radius:12px;border:0;background:#ff2d55;color:#fff;font-weight:700;font-size:16px;cursor:pointer}
+    .hint{font-size:12px;opacity:.7;margin-top:8px}
   </style>
 </head>
 <body>
@@ -18,40 +19,68 @@
     <h1>💖 Para ti</h1>
     <p id="msg">Pulsa el botón para un mensajito bonito</p>
     <button id="btn" class="btn">💌 Dame amor</button>
+    <p id="hint" class="hint"></p>
   </div>
 
   <script>
     (function () {
       const msgEl = document.getElementById("msg");
+      const hintEl = document.getElementById("hint");
       const btn = document.getElementById("btn");
 
       // Frases por defecto si la red falla o aún no existe messages.json
       let messages = ["Mamá te quiero","Papá te quiero","Nadia eres una gran médico","Soy el mejor"];
 
-      function messagesURL() {
-        // cache-busting fuerte con UUID para evitar cualquier copia intermedia
+      // Construye candidatos de ruta válidos para User Pages y Project Pages
+      function candidateJSONUrls() {
         const ts = (crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now();
-        return `./messages.json?ts=${ts}`;
+        const urls = [];
+
+        // 1) relativo al documento (lo normal si messages.json está al lado de index.html)
+        urls.push(new URL(`./messages.json?ts=${ts}`, location.href).toString());
+
+        // 2) mismo directorio “limpio” (por si /index.html está en la URL)
+        const dir = location.pathname.endsWith('index.html')
+          ? location.pathname.replace(/index\.html$/, '')
+          : (location.pathname.endsWith('/') ? location.pathname : location.pathname + '/');
+        urls.push(`${location.origin}${dir}messages.json?ts=${ts}`);
+
+        // 3) Project Pages: /usuario.github.io/<repo>/...  -> fuerza prefijo /<repo>/
+        const parts = location.pathname.split('/').filter(Boolean);
+        if (parts.length >= 1) {
+          const repo = parts[0]; // <repo>
+          urls.push(`${location.origin}/${repo}/messages.json?ts=${ts}`);
+        }
+
+        // elimina duplicados manteniendo orden
+        return [...new Set(urls)];
       }
 
       async function loadMessages() {
-        try {
-          const res = await fetch(messagesURL(), {
-            cache: "reload",           // pide al navegador ir a red
-            headers: { "Cache-Control": "no-cache" }
-          });
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          const data = await res.json();
-          if (Array.isArray(data) && data.length) {
-            messages = data;
+        const candidates = candidateJSONUrls();
+        let lastError = null;
+        for (const url of candidates) {
+          try {
+            const res = await fetch(url, { cache: "reload", headers: { "Cache-Control": "no-cache" } });
+            if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
+            const data = await res.json();
+            if (Array.isArray(data) && data.length) {
+              messages = data;
+              hintEl.textContent = `Frases cargadas de: ${url.split('?')[0]}`;
+              return;
+            } else {
+              lastError = new Error(`JSON vacío o no es array @ ${url}`);
+            }
+          } catch (e) {
+            lastError = e;
           }
-        } catch (e) {
-          console.warn("No se pudieron cargar las frases más recientes:", e);
         }
+        console.warn("No se pudieron cargar las frases más recientes:", lastError);
+        hintEl.textContent = "⚠️ No se pudo cargar messages.json; usando frases por defecto.";
       }
 
       btn.addEventListener("click", async () => {
-        // Antes de mostrar, re-intenta traer la última lista
+        // Antes de mostrar, intenta traer la lista actual por si estás con la pestaña abierta
         await loadMessages();
         msgEl.textContent = messages[Math.floor(Math.random() * messages.length)];
       });
@@ -62,14 +91,13 @@
       // Refresca frases automáticamente cada 5 minutos
       setInterval(loadMessages, 5 * 60 * 1000);
 
-      // Y también cuando vuelves a la pestaña
+      // También cuando vuelves a la pestaña
       document.addEventListener("visibilitychange", () => {
         if (!document.hidden) loadMessages();
       });
     })();
   </script>
 
-  <!-- Registro del Service Worker -->
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./service-worker.js")
@@ -79,4 +107,5 @@
   </script>
 </body>
 </html>
+
 
