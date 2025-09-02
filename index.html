@@ -20,19 +20,26 @@
     <button id="btn" class="btn">💌 Dame amor</button>
   </div>
 
-  <!-- Script principal: SIEMPRE trae la última versión de messages.json -->
   <script>
-    (function(){
+    (function () {
       const msgEl = document.getElementById("msg");
       const btn = document.getElementById("btn");
 
       // Frases por defecto si la red falla o aún no existe messages.json
       let messages = ["Mamá te quiero","Papá te quiero","Nadia eres una gran médico","Soy el mejor"];
 
+      function messagesURL() {
+        // cache-busting fuerte con UUID para evitar cualquier copia intermedia
+        const ts = (crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now();
+        return `./messages.json?ts=${ts}`;
+      }
+
       async function loadMessages() {
         try {
-          // cache-busting automático: no tienes que cambiar nada nunca
-          const res = await fetch(`./messages.json?ts=${Date.now()}`, { cache: "no-store" });
+          const res = await fetch(messagesURL(), {
+            cache: "reload",           // pide al navegador ir a red
+            headers: { "Cache-Control": "no-cache" }
+          });
           if (!res.ok) throw new Error("HTTP " + res.status);
           const data = await res.json();
           if (Array.isArray(data) && data.length) {
@@ -43,7 +50,9 @@
         }
       }
 
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
+        // Antes de mostrar, re-intenta traer la última lista
+        await loadMessages();
         msgEl.textContent = messages[Math.floor(Math.random() * messages.length)];
       });
 
@@ -60,7 +69,7 @@
     })();
   </script>
 
-  <!-- Registro del Service Worker (déjalo tal cual) -->
+  <!-- Registro del Service Worker -->
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./service-worker.js")
@@ -70,3 +79,4 @@
   </script>
 </body>
 </html>
+
