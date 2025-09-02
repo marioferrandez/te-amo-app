@@ -1,6 +1,5 @@
 // service-worker.js
-// Caché estable (no tendrás que versionar)
-const CACHE = "te-amo";
+const CACHE = "te-amo"; // estable
 const ASSETS = [
   "./manifest.json",
   // añade aquí assets inmutables si quieres (iconos, css/js con hash)
@@ -10,14 +9,12 @@ const toScopeURL = (url) => new URL(url, self.registration.scope).toString();
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(ASSETS.map(toScopeURL)))
-  );
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS.map(toScopeURL))));
 });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
-    // Limpia cualquier copia vieja de messages.json que hubiera quedado cacheada
+    // Elimina cualquier copia previa de messages.json del caché del SW
     try {
       const cache = await caches.open(CACHE);
       const keys = await cache.keys();
@@ -38,9 +35,9 @@ self.addEventListener("fetch", (e) => {
   // Sólo GET y mismo origen
   if (req.method !== "GET" || url.origin !== location.origin) return;
 
-  // 1) messages.json -> BYPASS TOTAL DEL SW (sin cachear, sin fallback)
+  // 1) messages.json -> bypass completo de la caché del SW y del navegador local
   if (url.pathname.endsWith("/messages.json") || url.pathname.endsWith("messages.json")) {
-    e.respondWith(fetch(req, { cache: "no-store" }));
+    e.respondWith(fetch(req, { cache: "reload" })); // fuerza red
     return;
   }
 
@@ -74,6 +71,5 @@ self.addEventListener("fetch", (e) => {
     return cached || fetching || fetch(req);
   })());
 });
-
 
 
