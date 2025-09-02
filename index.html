@@ -1,39 +1,59 @@
-<script>
-  const msgEl = document.getElementById("msg");
-  const btn = document.getElementById("btn");
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Te Amo App ❤️</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ff2d55">
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(160deg,#ffdde1,#ee9ca7);min-height:100vh;display:grid;place-items:center}
+    .card{background:rgba(255,255,255,.7);backdrop-filter:blur(8px);border-radius:24px;box-shadow:0 10px 35px rgba(0,0,0,.15);padding:24px;max-width:420px;width:92%}
+    h1{margin:0 0 8px;font-size:28px}
+    .btn{width:100%;padding:14px;border-radius:12px;border:0;background:#ff2d55;color:#fff;font-weight:700;font-size:16px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>💖 Para ti</h1>
+    <p id="msg">Pulsa el botón para un mensajito bonito</p>
+    <button id="btn" class="btn">💌 Dame amor</button>
+  </div>
+  <script>
+    const msgEl = document.getElementById("msg");
+    const btn = document.getElementById("btn");
 
-  // Fallback por si falla la red
-  let messages = ["Mamá te quiero","Papá te quiero","Nadia eres una gran médico","Soy el mejor"];
+    // Array por defecto (por si falla la red)
+    let messages = ["Mamá te quiero","Papá te quiero","Nadia eres una gran médico","Soy el mejor"];
 
-  async function loadMessages() {
-    try {
-      const res = await fetch("./messages.json", { cache: "no-store" });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length) messages = data;
-    } catch (e) {
-      // seguimos con el fallback
-      console.warn("No se pudieron cargar las frases más recientes:", e);
+    // Cargar frases desde messages.json
+    async function loadMessages() {
+      try {
+        const res = await fetch("./messages.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length) {
+          messages = data;
+        }
+      } catch (e) {
+        console.warn("Usando frases por defecto:", e);
+      }
     }
-  }
 
-  btn.addEventListener("click", () => {
-    msgEl.textContent = messages[Math.floor(Math.random() * messages.length)];
-  });
+    btn.addEventListener("click", () => {
+      msgEl.textContent = messages[Math.floor(Math.random() * messages.length)];
+    });
 
-  // Carga inicial de frases
-  loadMessages();
+    // Al iniciar carga mensajes desde el JSON
+    loadMessages();
 
-  // (Opcional) recarga frases cada X minutos por si dejas la pestaña abierta
-  // setInterval(loadMessages, 5 * 60 * 1000);
-
-  // Registro del SW (ajusta la ruta si es Project Pages)
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./service-worker.js").then(reg => {
-      reg.update().catch(()=>{});
-    }).catch(console.error);
-  }
-</script>
+    // Registrar service worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./service-worker.js").then(reg => reg.update());
+    }
+  </script>
+</body>
+</html>
 
 
 
