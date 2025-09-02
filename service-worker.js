@@ -1,12 +1,11 @@
 // service-worker.js
-// Cache único y estable: no tendrás que cambiar versiones nunca
+// Caché estable (no tendrás que versionar)
 const CACHE = "te-amo";
 const ASSETS = [
   "./manifest.json",
-  // Si algún día tienes iconos o CSS/JS inmutables, añádelos aquí (opcional)
+  // añade aquí assets inmutables si quieres (iconos, css/js con hash)
 ];
 
-// Normaliza rutas al scope del SW (útil en GitHub Pages)
 const toScopeURL = (url) => new URL(url, self.registration.scope).toString();
 
 self.addEventListener("install", (e) => {
@@ -17,7 +16,19 @@ self.addEventListener("install", (e) => {
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(self.clients.claim());
+  e.waitUntil((async () => {
+    // Limpia cualquier copia vieja de messages.json que hubiera quedado cacheada
+    try {
+      const cache = await caches.open(CACHE);
+      const keys = await cache.keys();
+      await Promise.all(
+        keys
+          .filter(req => req.url.endsWith("/messages.json") || req.url.endsWith("messages.json"))
+          .map(req => cache.delete(req))
+      );
+    } catch {}
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", (e) => {
@@ -27,26 +38,13 @@ self.addEventListener("fetch", (e) => {
   // Sólo GET y mismo origen
   if (req.method !== "GET" || url.origin !== location.origin) return;
 
-  // 1) messages.json → siempre red con no-store, pero guardamos por PATH (ignora ?ts=)
+  // 1) messages.json -> BYPASS TOTAL DEL SW (sin cachear, sin fallback)
   if (url.pathname.endsWith("/messages.json") || url.pathname.endsWith("messages.json")) {
-    e.respondWith((async () => {
-      const pathKey = new Request(new URL(url.pathname, location.origin), { method: "GET" });
-      try {
-        const fresh = await fetch(req, { cache: "no-store" });
-        if (fresh && fresh.status === 200) {
-          const cache = await caches.open(CACHE);
-          await cache.put(pathKey, fresh.clone());
-        }
-        return fresh;
-      } catch {
-        const cached = await caches.match(pathKey);
-        return cached || new Response("[]", { headers: { "Content-Type": "application/json" }});
-      }
-    })());
+    e.respondWith(fetch(req, { cache: "no-store" }));
     return;
   }
 
-  // 2) HTML (navegación) → Network-First con no-store
+  // 2) HTML (navegación): Network-First con no-store
   if (req.mode === "navigate" || req.headers.get("accept")?.includes("text/html")) {
     e.respondWith((async () => {
       try {
@@ -63,7 +61,7 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // 3) Otros assets → Stale-While-Revalidate
+  // 3) Otros assets: Stale-While-Revalidate
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req);
@@ -76,8 +74,6 @@ self.addEventListener("fetch", (e) => {
     return cached || fetching || fetch(req);
   })());
 });
-
-
 
 
 
