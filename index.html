@@ -20,21 +20,27 @@
     <button id="btn" class="btn">💌 Dame amor</button>
   </div>
 
-  <!-- Script principal: carga mensajes -->
+  <!-- Script principal: SIEMPRE carga la última versión de messages.json -->
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    (function(){
       const msgEl = document.getElementById("msg");
       const btn = document.getElementById("btn");
 
-      // Frases por defecto (si falla la red o no existe messages.json)
+      // Frases por defecto por si falla la red o no existe el archivo aún
       let messages = ["Mamá te quiero","Papá te quiero","Nadia eres una gran médico","Soy el mejor"];
 
       async function loadMessages() {
         try {
-          const res = await fetch("./messages.json", { cache: "no-store" });
+          // cache-busting: evita cualquier caché (navegador, CDN o SW)
+          const url = `./messages.json?ts=${Date.now()}`;
+          const res = await fetch(url, { cache: "no-store" });
           if (!res.ok) throw new Error("HTTP " + res.status);
           const data = await res.json();
-          if (Array.isArray(data) && data.length) messages = data;
+          if (Array.isArray(data) && data.length) {
+            messages = data;
+            // (opcional) muestra una al cargar
+            // msgEl.textContent = messages[Math.floor(Math.random()*messages.length)];
+          }
         } catch (e) {
           console.warn("No se pudieron cargar las frases más recientes:", e);
         }
@@ -44,21 +50,29 @@
         msgEl.textContent = messages[Math.floor(Math.random() * messages.length)];
       });
 
+      // Carga inicial
       loadMessages();
-    });
+
+      // Refresca frases automáticamente cada 5 minutos (por si dejas la pestaña abierta)
+      setInterval(loadMessages, 5 * 60 * 1000);
+
+      // Y también cuando vuelves a la pestaña
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) loadMessages();
+      });
+    })();
   </script>
 
-  <!-- Script para registrar el Service Worker -->
-<script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./service-worker.js")
-      .then(reg => reg.update().catch(()=>{}))
-      .catch(err => console.error("SW register error:", err));
-  }
-</script>
+  <!-- Registro del Service Worker (no necesitas tocarlo nunca) -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./service-worker.js")
+        .then(reg => reg.update().catch(()=>{}))
+        .catch(err => console.error("SW register error:", err));
+    }
+  </script>
 </body>
 </html>
-
 
 
 
