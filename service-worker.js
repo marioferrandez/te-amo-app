@@ -1,13 +1,18 @@
 // service-worker.js
-const CACHE = "te-amo-v5-2025-09-02";
+const CACHE = "te-amo-v7-2025-09-02";
 const ASSETS = [
   "./manifest.json",
-  // añade aquí tus assets estáticos inmutables si quieres (css/js con hash)
+  // añade aquí (si quieres) assets estáticos inmutables (css/js con hash, iconos, etc.)
 ];
+
+// Convierte rutas relativas a absolutas dentro del scope del SW (útil en GitHub Pages)
+const toScopeURL = (url) => new URL(url, self.registration.scope).toString();
 
 self.addEventListener("install", (e) => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  e.waitUntil(
+    caches.open(CACHE).then((c) => c.addAll(ASSETS.map(toScopeURL)))
+  );
 });
 
 self.addEventListener("activate", (e) => {
@@ -22,52 +27,65 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = new URL(req.url);
 
-  // Sólo GET y mismo origen
+  // Sólo manejamos GET y mismo origen
   if (req.method !== "GET" || url.origin !== location.origin) return;
 
-  // messages.json: siempre red (no-store). Fallback a caché si offline.
+  // --- 1) messages.json: siempre red con no-store, guardamos POR PATH (ignora ?ts=) ---
   if (url.pathname.endsWith("/messages.json") || url.pathname.endsWith("messages.json")) {
     e.respondWith((async () => {
+      const pathKey = new Request(new URL(url.pathname, location.origin), { method: "GET" });
       try {
         const fresh = await fetch(req, { cache: "no-store" });
-        const cache = await caches.open(CACHE);
-        cache.put(req, fresh.clone());
+        // guarda una copia offline por si luego no hay red
+        if (fresh && fresh.status === 200) {
+          const cache = await caches.open(CACHE);
+          await cache.put(pathKey, fresh.clone());
+        }
         return fresh;
       } catch {
-        return (await caches.match(req)) || new Response("[]", {
-          headers: { "Content-Type": "application/json" }
-        });
+        // si falla la red, devolvemos la última copia válida por PATH (ignora la query)
+        const cached = await caches.match(pathKey);
+        return cached || new Response("[]", { headers: { "Content-Type": "application/json" }});
       }
     })());
     return;
   }
 
-  // HTML: Network-First con no-store
+  // --- 2) HTML (navegación): Network-First con no-store ---
   if (req.mode === "navigate" || req.headers.get("accept")?.includes("text/html")) {
     e.respondWith((async () => {
       try {
         const fresh = await fetch(req, { cache: "no-store" });
         const cache = await caches.open(CACHE);
-        cache.put(req, fresh.clone());
+        // Guarda sólo respuestas válidas del propio origen
+        if (fresh && fresh.status === 200 && (fresh.type === "basic" || fresh.type === "default")) {
+          await cache.put(req, fresh.clone());
+        }
         return fresh;
       } catch {
-        return (await caches.match(req)) || (await caches.match("./")) || Response.error();
+        return (await caches.match(req)) || (await caches.match(toScopeURL("./"))) || Response.error();
       }
     })());
     return;
   }
 
-  // Otros assets: Stale-While-Revalidate
+  // --- 3) Otros assets: Stale-While-Revalidate ---
   e.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const cached = await cache.match(req);
+
     const fetching = fetch(req).then(res => {
-      if (res && res.status === 200 && res.type === "basic") cache.put(req, res.clone());
+      if (res && res.status === 200 && (res.type === "basic" || res.type === "default")) {
+        cache.put(req, res.clone());
+      }
       return res;
     }).catch(() => null);
+
     return cached || fetching || fetch(req);
   })());
 });
+
+
 
 
 
