@@ -1,4 +1,4 @@
-const CACHE = "te-amo-v3";
+const CACHE = "te-amo-v4";
 
 // Ya NO precacheamos index.html para evitar quedarnos con versiones viejas
 const ASSETS = ["./manifest.json"];
@@ -47,3 +47,4 @@ self.addEventListener("fetch", (e) => {
     )
   );
 });
+
