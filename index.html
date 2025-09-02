@@ -48,26 +48,17 @@
     });
   </script>
 
-  <!-- 🔧 TEMPORAL: desinstala cualquier Service Worker viejo y limpia cachés -->
-  <script>
-    (async () => {
-      if ('serviceWorker' in navigator) {
-        try {
-          const regs = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(regs.map(r => r.unregister()));
-        } catch {}
-      }
-      if ('caches' in window) {
-        try {
-          const keys = await caches.keys();
-          await Promise.all(keys.map(k => caches.delete(k)));
-        } catch {}
-      }
-      console.log("Modo seguro: SW desinstalado y cachés limpiadas.");
-    })();
-  </script>
+  <!-- Script para registrar el Service Worker -->
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./service-worker.js")
+      .then(reg => reg.update().catch(()=>{}))
+      .catch(err => console.error("SW register error:", err));
+  }
+</script>
 </body>
 </html>
+
 
 
 
